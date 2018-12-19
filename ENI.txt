@@ -1,0 +1,221 @@
+%% main.m 
+%The two-stage scheme for salt-and-pepper noise removal
+%读取四幅图像
+image1_original=imread('barbara.bmp');
+image2_original=imread('boat.bmp');
+image3_original=imread('lena.bmp');
+image4_original=imread('zebra.png');
+
+%分别给四幅图像加30%，40%，50%，60%的椒盐噪声
+image1_noise=imnoise(image1_original,'salt & pepper',0.3);
+image2_noise=imnoise(image2_original,'salt & pepper',0.4);
+image3_noise=imnoise(image3_original,'salt & pepper',0.5);
+image4_noise=imnoise(image4_original,'salt & pepper',0.6);
+
+%显示四幅噪声图像
+figure,imshow(image1_noise);
+figure,imshow(image2_noise);
+figure,imshow(image3_noise);
+figure,imshow(image4_noise);
+
+%调用ENI函数，进行ENI检测
+image1_eni=ENI(image1_noise,40);
+image2_eni=ENI(image2_noise,40);
+image3_eni=ENI(image3_noise,40);
+image4_eni=ENI(image4_noise,40);
+
+%调用image_noise函数，显示ENI检测后噪声二值图像
+image_eninoise1=image_noise(image1_eni,12);
+image_eninoise2=image_noise(image2_eni,12);
+image_eninoise3=image_noise(image3_eni,12);
+image_eninoise4=image_noise(image4_eni,12);
+
+%显示噪声点二值图像
+figure,imshow(image_eninoise1);
+figure,imshow(image_eninoise2);
+figure,imshow(image_eninoise3);
+figure,imshow(image_eninoise4);
+
+%调用imfilter_average函数进行均值滤波
+imfilter1a=imfilter_average(image1_noise,image_eninoise1);
+imfilter2a=imfilter_average(image2_noise,image_eninoise2);
+imfilter3a=imfilter_average(image3_noise,image_eninoise3);
+imfilter4a=imfilter_average(image4_noise,image_eninoise4);
+
+%显示均值滤波结果
+figure,imshow(imfilter1a);
+figure,imshow(imfilter2a);
+figure,imshow(imfilter3a);
+figure,imshow(imfilter4a);
+
+%调用MSE函数，计算均值滤波MSE
+mse_average1=MSE(image1_original,imfilter1a);
+mse_average2=MSE(image2_original,imfilter2a);
+mse_average3=MSE(image3_original,imfilter3a);
+mse_average4=MSE(image4_original,imfilter4a);
+
+%调用imfilter_median函数进行中值滤波
+imfilter1m=imfilter_median(image1_noise,image_eninoise1);
+imfilter2m=imfilter_median(image2_noise,image_eninoise2);
+imfilter3m=imfilter_median(image3_noise,image_eninoise3);
+imfilter4m=imfilter_median(image4_noise,image_eninoise4);
+
+%显示中值滤波结果
+figure,imshow(imfilter1m);
+figure,imshow(imfilter2m);
+figure,imshow(imfilter3m);
+figure,imshow(imfilter4m);
+
+%计算中值滤波MSE
+mse_median1=MSE(image1_original,imfilter1m);
+mse_median2=MSE(image2_original,imfilter2m);
+mse_median3=MSE(image3_original,imfilter3m);
+mse_median4=MSE(image4_original,imfilter4m);
+
+%自适应中值滤波
+r1=adpmedian(image1_noise,9);
+r2=adpmedian(image2_noise,9);
+r3=adpmedian(image3_noise,9);
+r4=adpmedian(image4_noise,9);
+
+%显示自适应中值滤波结果
+figure,imshow(r1);
+figure,imshow(r2);
+figure,imshow(r3);
+figure,imshow(r4);
+
+%计算自适应中值滤波MSE
+mse_adpmed1=MSE(image1_original,r1);
+mse_adpmed2=MSE(image2_original,r2);
+mse_adpmed3=MSE(image3_original,r3);
+mse_adpmed4=MSE(image4_original,r4);
+
+%% ENI.m
+function eni=ENI(x,t)
+x=double(x);
+[m,n]=size(x);
+y=zeros(5,5);
+eni=zeros(m,n);
+% threshold1=30;
+for i=3:m-2
+    for j=3:n-2
+        
+        for h=-2:2
+            for k=-2:2
+                y(3+h,3+k)=abs(x(i+h,j+k)-x(i,j));
+                if y(3+h,3+k)>t
+                    y(3+h,3+k)=0;
+                else  y(3+h,3+k)=1;
+                end   
+                eni(i,j)=eni(i,j)+y(3+h,3+k);
+            end
+        end  
+    end
+end
+
+%% image_noise.m
+%  Show the detected noise pixels in BWimages
+function f=image_noise(x,t)
+f=x;
+[m,n]=size(x);
+for i=3:m-2
+    for j=3:n-2
+          if   x(i,j)<t
+            f(i,j)=255;
+          else f(i,j)=0;
+         end
+    end
+end
+
+%% imfilter_average.m
+function f=imfilter_average(x,y)
+f=double(x);
+[m,n]=size(x);
+
+for i=3:m-2
+    for j=3:n-2
+        if y(i,j)==255
+            sum=0;
+            for h=-2:2
+                for k=-2:2
+                    sum=sum+f(i+h,j+k);
+                end
+            end
+            f(i,j)=sum/25;
+        end
+    end
+end
+f=uint8(f);
+
+%% imfilter_median.m
+function f=imfilter_median(x,y)
+f=x;
+[m,n]=size(x);
+l=zeros(3,3);
+for i=1:m-1
+    for j=1:n-1
+        if y(i,j)==255
+            for h=-1:1
+                for k=-1:1
+                  l(h+2,k+2)=f(i+h,j+k);
+                end
+            end
+             f(i,j)=median(reshape(l,numel(l),1));
+        end
+    end
+end
+
+%% MSE.m
+function mse=MSE(x,y)
+[m,n]=size(x);
+x=im2double(x);
+y=im2double(y);
+mse=0;
+for i=1:m
+    for j=1:n
+        mse=mse+(x(i,j)-y(i,j))^2;
+    end
+end
+
+%% adpmedian.m
+function f = adpmedian(g, Smax)
+
+%   F = ADPMEDIAN(G, SMAX) performs adaptive median filtering of
+%   image G.  The median filter starts at size 3-by-3 and iterates
+%   up to size SMAX-by-SMAX. SMAX must be an odd integer greater
+%   than 1.
+% SMAX must be an odd, positive integer greater than 1.
+if (Smax <= 1) || (Smax/2 == round(Smax/2)) || (Smax ~= round(Smax))
+   error('SMAX must be an odd integer > 1.')
+end
+
+% Initial setup.
+f = g;
+f(:) = 0;
+alreadyProcessed = false(size(g));
+
+% Begin filtering.
+for k = 3:2:Smax
+   zmin = ordfilt2(g, 1, ones(k, k), 'symmetric');
+   zmax = ordfilt2(g, k * k, ones(k, k), 'symmetric');
+   zmed = medfilt2(g, [k k], 'symmetric');
+   
+   processUsingLevelB = (zmed > zmin) & (zmax > zmed) & ...
+       ~alreadyProcessed; 
+   zB = (g > zmin) & (zmax > g);
+   outputZxy  = processUsingLevelB & zB;
+   outputZmed = processUsingLevelB & ~zB;
+   f(outputZxy) = g(outputZxy);
+   f(outputZmed) = zmed(outputZmed);
+   
+   alreadyProcessed = alreadyProcessed | processUsingLevelB;
+   if all(alreadyProcessed(:))
+      break;
+   end
+end
+
+% Output zmed for any remaining unprocessed pixels. Note that this
+% zmed was computed using a window of size Smax-by-Smax, which is
+% the final value of k in the loop.
+f(~alreadyProcessed) = zmed(~alreadyProcessed);
+  mse=mse/(m*n);
